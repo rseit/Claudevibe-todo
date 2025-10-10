@@ -11,21 +11,102 @@
         border-radius: 10px;
         margin-bottom: 30px;
     }
-    .task-card {
+    .hourly-schedule {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .time-slot {
+        border-bottom: 1px solid #dee2e6;
+        padding: 15px;
+        display: flex;
+        align-items: flex-start;
+        min-height: 80px;
+        transition: background 0.2s;
+    }
+    .time-slot:hover {
+        background: #f8f9fa;
+    }
+    .time-slot:last-child {
+        border-bottom: none;
+    }
+    .time-label {
+        font-weight: 600;
+        color: #495057;
+        min-width: 100px;
+        padding-top: 5px;
+        font-size: 0.95rem;
+    }
+    .task-input-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .task-item {
+        background: #e9ecef;
+        padding: 10px 15px;
+        border-radius: 5px;
         border-left: 4px solid #343a40;
-        margin-bottom: 15px;
-        transition: transform 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
     }
-    .task-card:hover {
-        transform: translateX(5px);
-    }
-    .task-card.completed {
+    .task-item.completed {
         border-left-color: #28a745;
         opacity: 0.7;
     }
-    .add-task-card {
-        background: #f8f9fa;
-        border: 2px dashed #dee2e6;
+    .task-item-content {
+        flex: 1;
+    }
+    .task-item-title {
+        font-weight: 600;
+        margin: 0;
+    }
+    .task-item-desc {
+        margin: 5px 0 0 0;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    .task-item-actions {
+        display: flex;
+        gap: 5px;
+    }
+    .quick-add-form {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    .quick-add-input {
+        flex: 1;
+        padding: 8px 12px;
+        border: 2px dashed #ced4da;
+        border-radius: 5px;
+        font-size: 0.9rem;
+    }
+    .quick-add-input:focus {
+        border-color: #343a40;
+        border-style: solid;
+        outline: none;
+    }
+    .btn-xs {
+        padding: 3px 8px;
+        font-size: 0.75rem;
+    }
+    .edit-form {
+        display: flex;
+        gap: 10px;
+        background: white;
+        padding: 10px;
+        border-radius: 5px;
+        border: 2px solid #343a40;
+    }
+    .edit-form input[type="text"] {
+        flex: 1;
+        padding: 5px 10px;
+        border: 1px solid #ced4da;
+        border-radius: 3px;
     }
 </style>
 {% endblock %}
@@ -55,80 +136,81 @@
                 {% endfor %}
             {% endif %}
 
-            <div class="row">
-                <div class="col-md-8">
-                    <h3 class="mb-3">Tasks for Today</h3>
+            <div class="hourly-schedule">
+                <div class="p-3 bg-dark text-white" style="border-radius: 10px 10px 0 0;">
+                    <h3 class="mb-0">Daily Schedule</h3>
+                    <small>4:00 AM - 10:00 PM</small>
+                </div>
 
-                    {% if tasks %}
-                        {% for task in tasks %}
-                        <div class="card task-card {% if task.completed %}completed{% endif %}">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div class="flex-grow-1">
-                                        <h5 class="card-title mb-2">
-                                            {% if task.completed %}
-                                                <s>{{ task.title }}</s>
-                                            {% else %}
-                                                {{ task.title }}
-                                            {% endif %}
-                                        </h5>
-                                        {% if task.description %}
-                                            <p class="card-text text-muted">{{ task.description }}</p>
-                                        {% endif %}
-                                        <small class="text-muted">
-                                            Created: {{ task.created_at|date:"g:i A" }}
-                                        </small>
-                                    </div>
-                                    <div class="ms-3">
-                                        <form method="post" action="{% url 'toggle_task' task.id %}" style="display: inline;">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-sm {% if task.completed %}btn-secondary{% else %}btn-success{% endif %}">
-                                                {% if task.completed %}Undo{% else %}Complete{% endif %}
-                                            </button>
-                                        </form>
-                                        <form method="post" action="{% url 'delete_task' task.id %}" style="display: inline;">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this task?')">
-                                                Delete
-                                            </button>
-                                        </form>
-                                    </div>
+                {% for slot in hourly_schedule %}
+                <div class="time-slot">
+                    <div class="time-label">{{ slot.display }}</div>
+                    <div class="task-input-area">
+                        {% if slot.tasks %}
+                            {% for task in slot.tasks %}
+                            <div class="task-item {% if task.completed %}completed{% endif %}" id="task-{{ task.id }}">
+                                <div class="task-item-content">
+                                    <p class="task-item-title">
+                                        {% if task.completed %}<s>{{ task.title }}</s>{% else %}{{ task.title }}{% endif %}
+                                    </p>
+                                    {% if task.description %}
+                                        <p class="task-item-desc">{{ task.description }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="task-item-actions">
+                                    <button class="btn btn-sm btn-outline-secondary btn-xs" onclick="toggleEdit({{ task.id }})">Edit</button>
+                                    <form method="post" action="{% url 'toggle_task' task.id %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm {% if task.completed %}btn-outline-secondary{% else %}btn-outline-success{% endif %} btn-xs">
+                                            {% if task.completed %}Undo{% else %}Done{% endif %}
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'delete_task' task.id %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger btn-xs" onclick="return confirm('Delete this task?')">Del</button>
+                                    </form>
                                 </div>
                             </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="alert alert-info">
-                            No tasks for this day yet. Add one below!
-                        </div>
-                    {% endif %}
-                </div>
+                            <div class="edit-form" id="edit-form-{{ task.id }}" style="display: none;">
+                                <form method="post" action="{% url 'edit_task' task.id %}" style="display: flex; gap: 10px; flex: 1;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="time" value="{{ slot.time_str }}">
+                                    <input type="text" name="title" value="{{ task.title }}" required placeholder="Task title" style="flex: 1;">
+                                    <input type="text" name="description" value="{{ task.description }}" placeholder="Description (optional)" style="flex: 1;">
+                                    <button type="submit" class="btn btn-sm btn-dark">Save</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" onclick="toggleEdit({{ task.id }})">Cancel</button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
 
-                <div class="col-md-4">
-                    <div class="card add-task-card">
-                        <div class="card-header bg-dark text-white">
-                            <h5 class="mb-0">Add New Task</h5>
-                        </div>
-                        <div class="card-body">
-                            <form method="post">
-                                {% csrf_token %}
-                                <div class="mb-3">
-                                    <label for="title" class="form-label">Task Title</label>
-                                    <input type="text" class="form-control" id="title" name="title" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="description" class="form-label">Description (Optional)</label>
-                                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                                </div>
-                                <div class="d-grid">
-                                    <button type="submit" class="btn btn-dark">Add Task</button>
-                                </div>
-                            </form>
-                        </div>
+                        <form method="post" class="quick-add-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="time" value="{{ slot.time_str }}">
+                            <input type="text" name="title" class="quick-add-input" placeholder="Add a task for {{ slot.display }}..." required>
+                            <input type="text" name="description" class="quick-add-input" placeholder="Description (optional)" style="max-width: 200px;">
+                            <button type="submit" class="btn btn-sm btn-dark">Add</button>
+                        </form>
                     </div>
                 </div>
+                {% endfor %}
             </div>
         </div>
     </div>
 </div>
+
+<script>
+function toggleEdit(taskId) {
+    const taskItem = document.getElementById('task-' + taskId);
+    const editForm = document.getElementById('edit-form-' + taskId);
+
+    if (editForm.style.display === 'none') {
+        editForm.style.display = 'flex';
+        taskItem.style.display = 'none';
+    } else {
+        editForm.style.display = 'none';
+        taskItem.style.display = 'flex';
+    }
+}
+</script>
 {% endblock %}

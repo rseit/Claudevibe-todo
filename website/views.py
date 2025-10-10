@@ -67,7 +67,7 @@ def register_view(request):
 @login_required
 def day_detail(request, year, month, day):
 	from .models import Task
-	from datetime import date
+	from datetime import date, time
 
 	selected_date = date(year, month, day)
 	tasks = Task.objects.filter(user=request.user, date=selected_date)
@@ -75,19 +75,43 @@ def day_detail(request, year, month, day):
 	if request.method == 'POST':
 		title = request.POST.get('title')
 		description = request.POST.get('description', '')
+		time_str = request.POST.get('time', '')
+
+		task_time = None
+		if time_str:
+			try:
+				hour, minute = map(int, time_str.split(':'))
+				task_time = time(hour, minute)
+			except:
+				pass
+
 		if title:
 			Task.objects.create(
 				user=request.user,
 				date=selected_date,
+				time=task_time,
 				title=title,
 				description=description
 			)
 			messages.success(request, 'Task added successfully!')
 			return redirect('day_detail', year=year, month=month, day=day)
 
+	# Generate hourly schedule from 4 AM to 10 PM
+	hourly_schedule = []
+	for hour in range(4, 23):  # 4 AM to 10 PM (22:00)
+		hour_time = time(hour, 0)
+		hour_tasks = tasks.filter(time=hour_time)
+		hourly_schedule.append({
+			'time': hour_time,
+			'time_str': f"{hour:02d}:00",
+			'display': hour_time.strftime('%I:%M %p'),
+			'tasks': hour_tasks
+		})
+
 	context = {
 		'date': selected_date,
 		'tasks': tasks,
+		'hourly_schedule': hourly_schedule,
 		'year': year,
 		'month': month,
 		'day': day,
@@ -114,4 +138,26 @@ def delete_task(request, task_id):
 		task.delete()
 		messages.success(request, 'Task deleted!')
 		return redirect('day_detail', year=task_date.year, month=task_date.month, day=task_date.day)
+	return redirect('home')
+
+@login_required
+def edit_task(request, task_id):
+	from .models import Task
+	from datetime import time
+	if request.method == 'POST':
+		task = Task.objects.get(id=task_id, user=request.user)
+		task.title = request.POST.get('title', task.title)
+		task.description = request.POST.get('description', task.description)
+
+		time_str = request.POST.get('time', '')
+		if time_str:
+			try:
+				hour, minute = map(int, time_str.split(':'))
+				task.time = time(hour, minute)
+			except:
+				pass
+
+		task.save()
+		messages.success(request, 'Task updated!')
+		return redirect('day_detail', year=task.date.year, month=task.date.month, day=task.date.day)
 	return redirect('home')
