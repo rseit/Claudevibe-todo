@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load calendar_extras %}
 
 {% block title %}Home - TaskFlow{% endblock %}
 
@@ -59,6 +60,30 @@
         font-size: 1.2em;
         font-weight: 600;
     }
+    .task-indicator {
+        margin-top: 5px;
+        font-size: 0.8em;
+        padding: 2px 6px;
+        border-radius: 3px;
+        display: inline-block;
+    }
+    .task-badge {
+        background: #0d6efd;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.75em;
+        margin-top: 5px;
+        display: inline-block;
+    }
+    .task-completed {
+        background: #198754;
+    }
+    .day-content {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
     .nav-btn {
         background: rgba(255,255,255,0.2);
         border: none;
@@ -115,7 +140,23 @@
                             {% else %}
                                 <td {% if day == today %}class="today"{% endif %}>
                                     <a href="{% url 'day_detail' year month day %}">
-                                        <div class="day-number">{{ day }}</div>
+                                        <div class="day-content">
+                                            <div class="day-number">{{ day }}</div>
+                                            {% with task_counts|get_item:day as day_tasks %}
+                                                {% if day_tasks %}
+                                                    <div>
+                                                        <span class="task-badge">
+                                                            {{ day_tasks.total }} task{{ day_tasks.total|pluralize }}
+                                                        </span>
+                                                        {% if day_tasks.completed > 0 %}
+                                                            <span class="task-badge task-completed">
+                                                                {{ day_tasks.completed }} done
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endif %}
+                                            {% endwith %}
+                                        </div>
                                     </a>
                                 </td>
                             {% endif %}

@@ -8,6 +8,10 @@ import calendar
 
 @login_required
 def home(request):
+	from .models import Task
+	from datetime import date
+	from collections import defaultdict
+
 	# Get current month and year, or from request parameters
 	year = int(request.GET.get('year', datetime.now().year))
 	month = int(request.GET.get('month', datetime.now().month))
@@ -22,6 +26,21 @@ def home(request):
 	next_month = month + 1 if month < 12 else 1
 	next_year = year if month < 12 else year + 1
 
+	# Get all tasks for the current user in this month
+	tasks_in_month = Task.objects.filter(
+		user=request.user,
+		date__year=year,
+		date__month=month
+	)
+
+	# Create a dictionary of task counts per day
+	task_counts = defaultdict(lambda: {'total': 0, 'completed': 0})
+	for task in tasks_in_month:
+		day = task.date.day
+		task_counts[day]['total'] += 1
+		if task.completed:
+			task_counts[day]['completed'] += 1
+
 	context = {
 		'calendar': cal,
 		'month': month,
@@ -32,6 +51,7 @@ def home(request):
 		'next_month': next_month,
 		'next_year': next_year,
 		'today': datetime.now().day if month == datetime.now().month and year == datetime.now().year else None,
+		'task_counts': dict(task_counts),
 	}
 	return render(request, 'home.html', context)
 
