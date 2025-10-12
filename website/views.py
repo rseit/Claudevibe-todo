@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from datetime import datetime
@@ -181,3 +181,46 @@ def edit_task(request, task_id):
 		messages.success(request, 'Task updated!')
 		return redirect('day_detail', year=task.date.year, month=task.date.month, day=task.date.day)
 	return redirect('home')
+
+@login_required
+def profile(request):
+	if request.method == 'POST':
+		user = request.user
+
+		# Update basic info
+		user.first_name = request.POST.get('first_name', '')
+		user.last_name = request.POST.get('last_name', '')
+		user.email = request.POST.get('email', '')
+
+		# Check if username is being changed
+		new_username = request.POST.get('username', '')
+		if new_username and new_username != user.username:
+			# Check if username is already taken
+			from django.contrib.auth.models import User
+			if User.objects.filter(username=new_username).exists():
+				messages.error(request, 'Username already taken.')
+				return render(request, 'profile.html')
+			user.username = new_username
+
+		user.save()
+		messages.success(request, 'Profile updated successfully!')
+		return redirect('profile')
+
+	return render(request, 'profile.html')
+
+@login_required
+def change_password(request):
+	if request.method == 'POST':
+		form = PasswordChangeForm(request.user, request.POST)
+		if form.is_valid():
+			user = form.save()
+			update_session_auth_hash(request, user)
+			messages.success(request, 'Password changed successfully!')
+			return redirect('profile')
+		else:
+			for error in form.errors.values():
+				messages.error(request, error)
+	else:
+		form = PasswordChangeForm(request.user)
+
+	return render(request, 'change_password.html', {'form': form})
