@@ -1,17 +1,17 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.contrib import messages
-from datetime import datetime
+from django.views.decorators.http import require_POST
+from datetime import datetime, date, time
+from collections import defaultdict
 import calendar
+from .models import Task
 
 @login_required
 def home(request):
-	from .models import Task
-	from datetime import date
-	from collections import defaultdict
-
 	# Get current month and year, or from request parameters
 	year = int(request.GET.get('year', datetime.now().year))
 	month = int(request.GET.get('month', datetime.now().month))
@@ -67,6 +67,7 @@ def login_view(request):
 			messages.error(request, 'Invalid username or password.')
 	return render(request, 'login.html')
 
+@require_POST
 def logout_view(request):
 	logout(request)
 	return redirect('home')
@@ -86,9 +87,6 @@ def register_view(request):
 
 @login_required
 def day_detail(request, year, month, day):
-	from .models import Task
-	from datetime import date, time
-
 	selected_date = date(year, month, day)
 	tasks = Task.objects.filter(user=request.user, date=selected_date)
 
@@ -102,7 +100,7 @@ def day_detail(request, year, month, day):
 			try:
 				hour, minute = map(int, time_str.split(':'))
 				task_time = time(hour, minute)
-			except:
+			except (ValueError, AttributeError):
 				pass
 
 		if title:
@@ -139,48 +137,41 @@ def day_detail(request, year, month, day):
 	return render(request, 'day_detail.html', context)
 
 @login_required
+@require_POST
 def toggle_task(request, task_id):
-	from .models import Task
-	if request.method == 'POST':
-		task = Task.objects.get(id=task_id, user=request.user)
-		task.completed = not task.completed
-		task.save()
-		messages.success(request, 'Task updated!')
-		return redirect('day_detail', year=task.date.year, month=task.date.month, day=task.date.day)
-	return redirect('home')
+	task = get_object_or_404(Task, id=task_id, user=request.user)
+	task.completed = not task.completed
+	task.save()
+	messages.success(request, 'Task updated!')
+	return redirect('day_detail', year=task.date.year, month=task.date.month, day=task.date.day)
 
 @login_required
+@require_POST
 def delete_task(request, task_id):
-	from .models import Task
-	if request.method == 'POST':
-		task = Task.objects.get(id=task_id, user=request.user)
-		task_date = task.date
-		task.delete()
-		messages.success(request, 'Task deleted!')
-		return redirect('day_detail', year=task_date.year, month=task_date.month, day=task_date.day)
-	return redirect('home')
+	task = get_object_or_404(Task, id=task_id, user=request.user)
+	task_date = task.date
+	task.delete()
+	messages.success(request, 'Task deleted!')
+	return redirect('day_detail', year=task_date.year, month=task_date.month, day=task_date.day)
 
 @login_required
+@require_POST
 def edit_task(request, task_id):
-	from .models import Task
-	from datetime import time
-	if request.method == 'POST':
-		task = Task.objects.get(id=task_id, user=request.user)
-		task.title = request.POST.get('title', task.title)
-		task.description = request.POST.get('description', task.description)
+	task = get_object_or_404(Task, id=task_id, user=request.user)
+	task.title = request.POST.get('title', task.title)
+	task.description = request.POST.get('description', task.description)
 
-		time_str = request.POST.get('time', '')
-		if time_str:
-			try:
-				hour, minute = map(int, time_str.split(':'))
-				task.time = time(hour, minute)
-			except:
-				pass
+	time_str = request.POST.get('time', '')
+	if time_str:
+		try:
+			hour, minute = map(int, time_str.split(':'))
+			task.time = time(hour, minute)
+		except (ValueError, AttributeError):
+			pass
 
-		task.save()
-		messages.success(request, 'Task updated!')
-		return redirect('day_detail', year=task.date.year, month=task.date.month, day=task.date.day)
-	return redirect('home')
+	task.save()
+	messages.success(request, 'Task updated!')
+	return redirect('day_detail', year=task.date.year, month=task.date.month, day=task.date.day)
 
 @login_required
 def profile(request):
@@ -196,7 +187,6 @@ def profile(request):
 		new_username = request.POST.get('username', '')
 		if new_username and new_username != user.username:
 			# Check if username is already taken
-			from django.contrib.auth.models import User
 			if User.objects.filter(username=new_username).exists():
 				messages.error(request, 'Username already taken.')
 				return render(request, 'profile.html')
@@ -206,7 +196,15 @@ def profile(request):
 		messages.success(request, 'Profile updated successfully!')
 		return redirect('profile')
 
-	return render(request, 'profile.html')
+	# Calculate task statistics
+	total_tasks = request.user.tasks.count()
+	completed_tasks = request.user.tasks.filter(completed=True).count()
+
+	context = {
+		'total_tasks': total_tasks,
+		'completed_tasks': completed_tasks,
+	}
+	return render(request, 'profile.html', context)
 
 @login_required
 def change_password(request):
